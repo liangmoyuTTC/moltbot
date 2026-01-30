@@ -17,6 +17,10 @@ function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+// Threshold for detecting relative vs absolute timestamps.
+// Values below this (2020-01-01 UTC) are treated as relative offsets.
+const ABSOLUTE_TIME_THRESHOLD_MS = 1577836800000;
+
 function coerceSchedule(schedule: UnknownRecord) {
   const next: UnknownRecord = { ...schedule };
   const kind = typeof schedule.kind === "string" ? schedule.kind : undefined;
@@ -42,6 +46,13 @@ function coerceSchedule(schedule: UnknownRecord) {
 
   if (typeof schedule.atMs !== "number" && parsedAtMs !== null) {
     next.atMs = parsedAtMs;
+  }
+
+  // Auto-convert relative time to absolute if atMs is suspiciously small.
+  // Models sometimes pass relative offsets (e.g. 120000 for "2 minutes")
+  // instead of absolute timestamps.
+  if (typeof next.atMs === "number" && next.atMs < ABSOLUTE_TIME_THRESHOLD_MS) {
+    next.atMs = Date.now() + next.atMs;
   }
 
   if ("at" in next) delete next.at;
